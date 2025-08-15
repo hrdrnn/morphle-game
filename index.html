@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Morphle — Map-to-Meaning (with Subjects)</title>
+<style>
+  :root{
+    --bg:#111316; --panel:#181b20; --ink:#e7ebf3; --muted:#a7b0c0;
+    --accent:#6aa8ff; --good:#2ea043; --bad:#3a3f47; --warn:#e0a800;
+    --chip:#242a33; --chipHover:#2b323d; --focus:#8cc1ff; --red:#e55353;
+    /* subject hues */
+    --english:#5ea2ff; --science:#2ecc71; --hums:#f5b942; --maths:#b271ff;
+  }
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .app{width:min(1100px,100%); display:grid; gap:16px;}
+  header{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  h1{font-size:22px; letter-spacing:.5px; margin:0;}
+  .sub{color:var(--muted); font-size:13px}
+  .bar{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  button{
+    background:var(--panel); color:var(--ink); border:1px solid #2a2f37;
+    border-radius:10px; padding:10px 14px; font-weight:600; cursor:pointer;
+  }
+  button:hover{background:#20252c}
+  button:focus{outline:2px solid var(--focus); outline-offset:2px}
+  .board{display:grid; gap:16px; grid-template-columns:1.2fr 1fr;}
+  .left, .right{background:var(--panel); border:1px solid #2a2f37; border-radius:14px; padding:16px;}
+  .section{display:grid; gap:10px;}
+  .section h2{font-size:14px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin:0 0 4px 0;}
+  .grid{display:grid; gap:8px; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));}
+  .chip{display:flex; align-items:center; justify-content:space-between; gap:6px;
+    background:var(--chip); border:1px solid #2a2f37; border-radius:12px;
+    padding:8px 10px; font-weight:600; user-select:none;}
+  .chip .mini{font-size:11px; color:var(--muted); font-weight:500}
+  .chip:hover{background:var(--chipHover)}
+  .chip.correct{background:color-mix(in oklab, var(--good) 20%, var(--chip)); border-color:var(--good)}
+  .chip.incorrect{background:var(--bad); color:#9aa3b1; border-color:#2d323a}
+  .legend{display:flex; gap:10px; align-items:center; color:var(--muted); font-size:12px}
+  .legend .swatch{width:14px; height:14px; border-radius:4px; border:1px solid #2a2f37}
+  .swatch.good{background:var(--good); border-color:var(--good)}
+  .swatch.bad{background:var(--bad)}
+  .guessbar{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:6px;}
+  input[type="text"]{
+    flex:1; min-width:220px; background:#0e1116; color:var(--ink);
+    border:1px solid #2a2f37; border-radius:10px; padding:12px 12px; font-size:16px;
+  }
+  .rounds{margin-left:auto; color:var(--muted); font-weight:700}
+  .hint{background:#12161d; border-left:4px solid var(--warn); padding:10px 12px; border-radius:8px; font-size:14px; color:#f5e3b3;}
+  .hintSubject{display:flex; align-items:center; gap:8px; background:#12161d; border-left:4px solid #3a4250; padding:10px 12px; border-radius:8px;}
+  .pill{font-size:12px; padding:3px 8px; border-radius:999px; font-weight:700; letter-spacing:.3px; border:1px solid #2a2f37}
+  .pill.english{background:color-mix(in oklab, var(--english) 15%, #12161d); color:#dfeaff; border-color:color-mix(in oklab, var(--english) 40%, #2a2f37)}
+  .pill.science{background:color-mix(in oklab, var(--science) 15%, #12161d); color:#e9ffef; border-color:color-mix(in oklab, var(--science) 40%, #2a2f37)}
+  .pill.hums{background:color-mix(in oklab, var(--hums) 15%, #12161d); color:#fff4e0; border-color:color-mix(in oklab, var(--hums) 40%, #2a2f37)}
+  .pill.maths{background:color-mix(in oklab, var(--maths) 15%, #12161d); color:#f2e9ff; border-color:color-mix(in oklab, var(--maths) 40%, #2a2f37)}
+  .feed{display:grid; gap:8px; margin-top:6px; max-height:240px; overflow:auto; padding-right:4px;}
+  .feed .row{background:#12161a; border:1px solid #22262e; border-radius:10px; padding:8px 10px; display:flex; align-items:center; gap:10px; justify-content:space-between;}
+  .row .parts{display:flex; gap:6px; flex-wrap:wrap}
+  .part{border:1px dashed #3a404b; padding:3px 8px; border-radius:7px; font-size:13px;}
+  .part.good{border-style:solid; border-color:var(--good)}
+  .part.bad{border-style:solid; border-color:var(--bad); color:#9aa3b1}
+  footer{display:flex; justify-content:center; color:var(--muted); font-size:12px; margin-top:4px}
+  .reveal{background:#122015; border:1px solid #203724; padding:10px 12px; border-radius:10px;}
+  .error{color:var(--red); font-weight:700}
+  .small{font-size:12px; color:var(--muted)} .tight{margin-top:-4px}
+  @media (max-width:880px){.board{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Morphle game">
+    <header>
+      <div>
+        <h1>Morphle<span class="sub"> — Wordle-style morphology</span></h1>
+        <div class="small tight">Now with subject hint: English, Science, Humanities, or Mathematics.</div>
+      </div>
+      <div class="bar">
+        <button id="newGameBtn" aria-label="Start new game">New Game</button>
+      </div>
+    </header>
+
+    <div class="board">
+      <section class="left section" aria-live="polite">
+        <h2>Guess Table — Affixes & Bases</h2>
+        <div class="grid" id="tokenGrid" aria-describedby="legend"></div>
+        <div class="legend" id="legend">
+          <span class="swatch good"></span> correct piece
+          <span class="swatch bad"></span> eliminated
+        </div>
+      </section>
+
+      <section class="right section">
+        <h2>Make a Guess</h2>
+        <!-- Subject hint appears immediately at the start of the game -->
+        <div id="hintSubject" class="hintSubject" role="note" aria-live="polite" style="display:none"></div>
+
+        <div class="guessbar">
+          <input id="guessInput" type="text" placeholder="Type a word from the list…" list="wordsList" aria-label="Guess a word" />
+          <datalist id="wordsList"></datalist>
+          <button id="submitBtn">Submit</button>
+          <span class="rounds" id="roundsLeft">5 rounds left</span>
+        </div>
+        <div id="error" class="error" role="alert" aria-live="assertive"></div>
+        <!-- Affix/Base meaning hints appear after each round -->
+        <div id="hint" class="hint" style="display:none"></div>
+
+        <div class="feed" id="feed" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <div id="reveal" style="display:none">
+      <div class="reveal">
+        <strong>Secret word:</strong> <span id="secretWord"></span>
+        <div class="small">Map to Meaning: <span id="secretMap"></span></div>
+        <div class="small">Subject: <span id="secretSubject"></span></div>
+      </div>
+    </div>
+
+    <footer>Built for prefix–base–suffix “Map to Meaning” practice.</footer>
+  </div>
+
+<script>
+/* ======== Data: morphemes (type + meaning) ======== */
+const MORPHEMES = {
+  /* Prefixes */
+  in:{type:'prefix',meaning:'not'}, im:{type:'prefix',meaning:'not'},
+  il:{type:'prefix',meaning:'not'}, ir:{type:'prefix',meaning:'not'},
+  pre:{type:'prefix',meaning:'before'}, re:{type:'prefix',meaning:'again'},
+  trans:{type:'prefix',meaning:'across'}, sub:{type:'prefix',meaning:'under'},
+  anti:{type:'prefix',meaning:'against'}, bi:{type:'prefix',meaning:'two'},
+  micro:{type:'prefix',meaning:'small'}, tele:{type:'prefix',meaning:'far'},
+  auto:{type:'prefix',meaning:'self'}, con:{type:'prefix',meaning:'with; together'},
+  peri:{type:'prefix',meaning:'around'},
+
+  /* Bases / roots */
+  cred:{type:'base',meaning:'believe'}, dict:{type:'base',meaning:'say; speak'},
+  bio:{type:'base',meaning:'life'}, aud:{type:'base',meaning:'hear'},
+  vis:{type:'base',meaning:'see'}, demo:{type:'base',meaning:'people'},
+  script:{type:'base',meaning:'write'}, scrib:{type:'base',meaning:'write'},
+  mobil:{type:'base',meaning:'move'}, port:{type:'base',meaning:'carry'},
+  struct:{type:'base',meaning:'build'}, meter:{type:'base',meaning:'measure'},
+  psych:{type:'base',meaning:'mind'}, phone:{type:'base',meaning:'sound'},
+  scope:{type:'base',meaning:'look'}, geo:{type:'base',meaning:'earth'},
+  therm:{type:'base',meaning:'heat'}, photo:{type:'base',meaning:'light'},
+  graph:{type:'base',meaning:'write'}, cycle:{type:'base',meaning:'wheel'},
+  marine:{type:'base',meaning:'sea'}, chrono:{type:'base',meaning:'time'},
+
+  /* Suffixes */
+  ible:{type:'suffix',meaning:'capable of being'}, able:{type:'suffix',meaning:'able to'},
+  ion:{type:'suffix',meaning:'act; process'}, logy:{type:'suffix',meaning:'study of'},
+  ology:{type:'suffix',meaning:'study of'}, cracy:{type:'suffix',meaning:'rule'},
+  ize:{type:'suffix',meaning:'make; render'}, al:{type:'suffix',meaning:'related to'},
+  graphy:{type:'suffix',meaning:'writing about'}
+};
+
+/* ======== Word bank: word + parts + subject ========
+   Subjects: 'English', 'Science', 'Humanities', 'Mathematics'
+*/
+const WORDS = [
+  {word:'incredible',    subject:'English',
+    parts:[{type:'prefix',text:'in'},{type:'base',text:'cred'},{type:'suffix',text:'ible'}]},
+  {word:'prediction',    subject:'Science',
+    parts:[{type:'prefix',text:'pre'},{type:'base',text:'dict'},{type:'suffix',text:'ion'}]},
+  {word:'biology',       subject:'Science',
+    parts:[{type:'base',text:'bio'},{type:'suffix',text:'logy'}]},
+  {word:'audible',       subject:'Science',
+    parts:[{type:'base',text:'aud'},{type:'suffix',text:'ible'}]},
+  {word:'revision',      subject:'English',
+    parts:[{type:'prefix',text:'re'},{type:'base',text:'vis'},{type:'suffix',text:'ion'}]},
+  {word:'democracy',     subject:'Humanities',
+    parts:[{type:'base',text:'demo'},{type:'suffix',text:'cracy'}]},
+  {word:'transcription', subject:'Science',
+    parts:[{type:'prefix',text:'trans'},{type:'base',text:'script'},{type:'suffix',text:'ion'}]},
+  {word:'immobilize',    subject:'Science',
+    parts:[{type:'prefix',text:'im'},{type:'base',text:'mobil'},{type:'suffix',text:'ize'}]},
+  {word:'perimeter',     subject:'Mathematics',
+    parts:[{type:'prefix',text:'peri'},{type:'base',text:'meter'}]},
+  {word:'psychology',    subject:'Humanities',
+    parts:[{type:'base',text:'psych'},{type:'suffix',text:'ology'}]},
+  {word:'microphone',    subject:'Science',
+    parts:[{type:'prefix',text:'micro'},{type:'base',text:'phone'}]},
+  {word:'telescope',     subject:'Science',
+    parts:[{type:'prefix',text:'tele'},{type:'base',text:'scope'}]},
+  {word:'geothermal',    subject:'Science',
+    parts:[{type:'base',text:'geo'},{type:'base',text:'therm'},{type:'suffix',text:'al'}]},
+  {word:'photograph',    subject:'Science',
+    parts:[{type:'base',text:'photo'},{type:'base',text:'graph'}]},
+  {word:'autograph',     subject:'English',
+    parts:[{type:'prefix',text:'auto'},{type:'base',text:'graph'}]},
+  {word:'bicycle',       subject:'Science',
+    parts:[{type:'prefix',text:'bi'},{type:'base',text:'cycle'}]},
+  {word:'submarine',     subject:'Science',
+    parts:[{type:'prefix',text:'sub'},{type:'base',text:'marine'}]},
+  {word:'transport',     subject:'Humanities',
+    parts:[{type:'prefix',text:'trans'},{type:'base',text:'port'}]},
+  {word:'portable',      subject:'Science',
+    parts:[{type:'base',text:'port'},{type:'suffix',text:'able'}]},
+  {word:'construction',  subject:'Humanities',
+    parts:[{type:'prefix',text:'con'},{type:'base',text:'struct'},{type:'suffix',text:'ion'}]},
+  {word:'geography',     subject:'Humanities',
+    parts:[{type:'base',text:'geo'},{type:'suffix',text:'graphy'}]},
+  {word:'chronology',    subject:'Humanities',
+    parts:[{type:'base',text:'chrono'},{type:'suffix',text:'logy'}]}
+];
+
+/* ======== Game state ======== */
+const ROUNDS_MAX = 5;
+let secret = null;               // {word, parts, subject}
+let roundsLeft = ROUNDS_MAX;
+let tokenState = new Map();      // key "type:text" -> 'unknown' | 'correct' | 'incorrect'
+let shownTokens = [];            // list of {type,text}
+let hintQueue = [];              // [{type,text,meaning}]
+let revealed = false;
+
+const els = {
+  tokenGrid: document.getElementById('tokenGrid'),
+  wordsList: document.getElementById('wordsList'),
+  guessInput: document.getElementById('guessInput'),
+  submitBtn: document.getElementById('submitBtn'),
+  roundsLeft: document.getElementById('roundsLeft'),
+  feed: document.getElementById('feed'),
+  hint: document.getElementById('hint'),
+  hintSubject: document.getElementById('hintSubject'),
+  error: document.getElementById('error'),
+  reveal: document.getElementById('reveal'),
+  secretWord: document.getElementById('secretWord'),
+  secretMap: document.getElementById('secretMap'),
+  secretSubject: document.getElementById('secretSubject'),
+  newGameBtn: document.getElementById('newGameBtn')
+};
+
+/* ======== Utilities ======== */
+const sample = (arr,n) => { const a=arr.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a.slice(0,Math.max(0,Math.min(n,a.length))); };
+const keyFor = (obj) => `${obj.type}:${obj.text}`;
+const morphemeMeaning = (text) => MORPHEMES[text]?.meaning ?? '';
+const WORD_LOOKUP = new Map(WORDS.map(w => [w.word.toLowerCase(), w.parts]));
+
+/* ======== Rendering ======== */
+function renderWordList(){
+  els.wordsList.innerHTML = '';
+  WORDS.map(w=>w.word).sort().forEach(w=>{
+    const opt = document.createElement('option'); opt.value = w; els.wordsList.appendChild(opt);
+  });
+}
+
+function renderTokens(){
+  els.tokenGrid.innerHTML = '';
+  shownTokens.forEach(tok=>{
+    const chip = document.createElement('div');
+    chip.className = `chip ${tokenState.get(keyFor(tok))||''}`;
+    chip.setAttribute('data-type', tok.type);
+    chip.setAttribute('data-text', tok.text);
+    chip.setAttribute('role','button');
+    chip.setAttribute('aria-label', `${tok.type} ${tok.text} — ${morphemeMeaning(tok.text)}`);
+    chip.tabIndex = 0;
+    chip.innerHTML = `<span>${tok.text}</span> <span class="mini">${tok.type}</span>`;
+    chip.title = `${tok.type} • ${morphemeMeaning(tok.text) || '—'}`;
+    chip.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); }});
+    els.tokenGrid.appendChild(chip);
+  });
+}
+
+function renderHint(nextHint){
+  if(!nextHint){ els.hint.style.display='none'; return; }
+  els.hint.style.display='block';
+  const label = nextHint.type === 'base' ? 'base/root' : nextHint.type;
+  els.hint.innerHTML = `Hint: The <strong>${label}</strong> means “${nextHint.meaning}”.`;
+}
+
+function renderSubjectHint(subject){
+  const el = els.hintSubject;
+  const cls = subjectClass(subject);
+  el.style.display='flex';
+  el.innerHTML = `
+    <span>Initial hint:</span>
+    <span class="pill ${cls}" aria-label="Subject">${subject}</span>
+    <span class="small">This word belongs to the <strong>${subject}</strong> category.</span>
+  `;
+}
+
+function subjectClass(subject){
+  const s = subject.toLowerCase();
+  if(s.startsWith('eng')) return 'english';
+  if(s.startsWith('sci')) return 'science';
+  if(s.startsWith('hum')) return 'hums';
+  if(s.startsWith('math')) return 'maths';
+  return '';
+}
+
+function renderSecretReveal(){
+  els.reveal.style.display='block';
+  els.secretWord.textContent = secret.word;
+  const parts = secret.parts.map(p => `${p.type}:${p.text} (${morphemeMeaning(p.text)})`).join('  •  ');
+  els.secretMap.textContent = parts;
+  els.secretSubject.textContent = secret.subject;
+}
+
+function updateRounds(){
+  els.roundsLeft.textContent = `${roundsLeft} round${roundsLeft===1?'':'s'} left`;
+}
+
+/* ======== Game flow ======== */
+function newGame(){
+  // reset
+  secret = WORDS[Math.floor(Math.random()*WORDS.length)];
+  roundsLeft = ROUNDS_MAX; revealed = false; tokenState.clear();
+  els.feed.innerHTML = ''; els.error.textContent = ''; els.reveal.style.display='none';
+  updateRounds();
+
+  // Subject hint shown immediately
+  renderSubjectHint(secret.subject);
+
+  // Build token display: include all secret morphemes + decoys
+  const byType = {prefix:new Set(), base:new Set(), suffix:new Set()};
+  secret.parts.forEach(p => byType[p.type].add(p.text));
+
+  function poolFor(type){
+    return Object.entries(MORPHEMES).filter(([text,meta]) => meta.type===type).map(([text]) => text);
+  }
+
+  shownTokens = [];
+  ['prefix','base','suffix'].forEach(type=>{
+    const must = Array.from(byType[type]).map(text=>({type, text}));
+    const candidates = poolFor(type).filter(t => !byType[type].has(t)).map(text=>({type,text}));
+    const decoys = sample(candidates, Math.max(0, 10 - must.length)); // ~10 per type
+    shownTokens.push(...sample(must.concat(decoys), must.length + decoys.length));
+  });
+
+  shownTokens.forEach(t => tokenState.set(keyFor(t), ''));
+  renderTokens();
+
+  // Build hint queue from secret parts (prefix -> base -> suffix)
+  hintQueue = secret.parts.map(p=>({type:p.type, text:p.text, meaning:morphemeMeaning(p.text)}));
+  hintQueue.sort((a,b)=> (a.type==='prefix'?0:a.type==='base'?1:2) - (b.type==='prefix'?0:b.type==='base'?1:2));
+
+  // Affix/base hint hidden until first guess
+  renderHint(null);
+}
+
+function compareGuess(guessWord){
+  const guessParts = WORD_LOOKUP.get(guessWord.toLowerCase());
+  if(!guessParts) return null;
+  const secretKeys = new Set(secret.parts.map(p=>keyFor(p)));
+  const hits = new Set(); const misses = new Set();
+  const partsOut = guessParts.map(p=>{
+    const k = keyFor(p); const isHit = secretKeys.has(k);
+    (isHit?hits:misses).add(k);
+    return {...p, match:isHit};
+  });
+  return {parts:partsOut, hits, misses};
+}
+
+function applyTokenColors(hits, misses){
+  hits.forEach(k => tokenState.set(k, 'correct'));
+  misses.forEach(k => { if(tokenState.get(k)!=='correct') tokenState.set(k,'incorrect'); });
+  renderTokens();
+}
+
+function addFeedRow(guessWord, parts){
+  const row = document.createElement('div'); row.className = 'row';
+  const left = document.createElement('div'); left.textContent = guessWord; left.style.fontWeight='700';
+  const right = document.createElement('div'); right.className = 'parts';
+  parts.forEach(p=>{
+    const tag = document.createElement('span');
+    tag.className = `part ${p.match?'good':'bad'}`;
+    tag.textContent = `${p.type}:${p.text}`;
+    tag.title = MORPHEMES[p.text] ? `${p.type} • ${MORPHEMES[p.text].meaning}` : p.type;
+    right.appendChild(tag);
+  });
+  row.appendChild(left); row.appendChild(right); els.feed.prepend(row);
+}
+
+function nextHint(){
+  renderHint(hintQueue.shift() || null);
+}
+
+function handleSubmit(){
+  if(revealed) return;
+  const guess = (els.guessInput.value||'').trim();
+  els.error.textContent = '';
+  if(!guess){ els.error.textContent = 'Enter a word from the list.'; return; }
+  if(!WORD_LOOKUP.has(guess.toLowerCase())){ els.error.textContent = 'That word is not in this game’s list.'; return; }
+
+  // Require overlap with visible table
+  const guessParts = WORD_LOOKUP.get(guess.toLowerCase());
+  const visibleSet = new Set(shownTokens.map(keyFor));
+  const usesVisible = guessParts.some(p => visibleSet.has(keyFor(p)));
+  if(!usesVisible){ els.error.textContent = 'Pick a word that uses at least one piece from the table.'; return; }
+
+  const res = compareGuess(guess);
+  addFeedRow(guess, res.parts);
+  applyTokenColors(res.hits, res.misses);
+
+  roundsLeft--; updateRounds(); nextHint();
+
+  if(guess.toLowerCase() === secret.word.toLowerCase()){
+    els.roundsLeft.textContent = 'You solved it!';
+    revealed = true; renderSecretReveal(); return;
+  }
+  if(roundsLeft <= 0){ revealed = true; renderSecretReveal(); }
+
+  els.guessInput.value = ''; els.guessInput.focus();
+}
+
+/* ======== Wire up ======== */
+function init(){
+  // populate guess list
+  renderWordList();
+  // events
+  document.getElementById('submitBtn').addEventListener('click', handleSubmit);
+  document.getElementById('guessInput').addEventListener('keydown', e=>{ if(e.key==='Enter'){ handleSubmit(); }});
+  document.getElementById('newGameBtn').addEventListener('click', newGame);
+  // start
+  newGame();
+}
+init();
+</script>
+</body>
+</html>
