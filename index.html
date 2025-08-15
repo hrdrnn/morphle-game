@@ -33,7 +33,21 @@
   .left, .right{background:var(--panel); border:1px solid #2a2f37; border-radius:14px; padding:16px;}
   .section{display:grid; gap:10px;}
   .section h2{font-size:14px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin:0 0 4px 0;}
-  .grid{display:grid; gap:8px; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));}
+  /*
+   * Display the morpheme chips in a fixed 7×10 grid. Each chip occupies
+   * one column in a seven‑column layout. The container has a maximum
+   * height equivalent to roughly ten rows of chips; if there are more
+   * morphemes than fit vertically, a scrollbar appears so players can
+   * browse through all of them. This ensures the list of affixes and
+   * bases/roots remains accessible but doesn’t overwhelm the layout.
+   */
+  .grid{
+    display:grid;
+    gap:8px;
+    grid-template-columns: repeat(7, 1fr);
+    max-height: 420px;
+    overflow-y: auto;
+  }
   .chip{display:flex; align-items:center; justify-content:space-between; gap:6px;
     background:var(--chip); border:1px solid #2a2f37; border-radius:12px;
     padding:8px 10px; font-weight:600; user-select:none;}
@@ -125,8 +139,10 @@
     <footer>Built for prefix–base–suffix “Map to Meaning” practice.</footer>
   </div>
 
-<!-- Load morpheme and word data from external files -->
+<!-- Load morpheme and word data from external files. The generated word list
+     must be loaded before words_data.js so that WORDS_GENERATED is defined. -->
 <script src="morphemes_data.js"></script>
+<script src="words_data_generated.js"></script>
 <script src="words_data.js"></script>
 <script>
 /* ======== Data: morphemes (type + meaning) ======== */
@@ -227,6 +243,10 @@ let revealed = false;
 
 // Track the most recently clicked chip so the Hint button can reveal its meaning
 let selectedChip = null;
+
+// Track whether a hint has been used in the current round.  When true,
+// additional hint requests will be ignored until the player submits a guess.
+let hintUsedThisRound = false;
 
 const els = {
   tokenGrid: document.getElementById('tokenGrid'),
@@ -335,6 +355,9 @@ function newGame(){
   // Reset selected chip at the start of a new game
   selectedChip = null;
 
+  // Reset hint usage so players can request a hint in the first round
+  hintUsedThisRound = false;
+
   // Clear the guess input field for a fresh start
   els.guessInput.value = '';
 
@@ -346,30 +369,50 @@ function newGame(){
   // Subject hint shown immediately
   renderSubjectHint(secret.subject);
 
-  // Build token display: include all secret morphemes + decoys
-  const byType = {prefix:new Set(), base:new Set(), suffix:new Set()};
-  secret.parts.forEach(p => byType[p.type].add(p.text));
-
-  function poolFor(type){
-    return Object.entries(MORPHEMES).filter(([text,meta]) => meta.type===type).map(([text]) => text);
-  }
-
-  shownTokens = [];
-  ['prefix','base','suffix'].forEach(type=>{
-    const must = Array.from(byType[type]).map(text=>({type, text}));
-    const candidates = poolFor(type).filter(t => !byType[type].has(t)).map(text=>({type,text}));
-    const decoys = sample(candidates, Math.max(0, 10 - must.length)); // ~10 per type
-    shownTokens.push(...sample(must.concat(decoys), must.length + decoys.length));
+  // Build token display: include all standard prefixes, suffixes and bases plus the secret’s
+  // parts. The display lists are capped at 50 base roots and include all
+  // available prefixes and suffixes from the MORPHEMES dictionary.
+  const displayPrefixes = Object.entries(MORPHEMES)
+    .filter(([txt, meta]) => meta.type === 'prefix')
+    .map(([txt]) => txt);
+  const displaySuffixes = Object.entries(MORPHEMES)
+    .filter(([txt, meta]) => meta.type === 'suffix')
+    .map(([txt]) => txt);
+  const allBases = Object.entries(MORPHEMES)
+    .filter(([txt, meta]) => meta.type === 'base')
+    .map(([txt]) => txt);
+  // Take the first 50 bases (the most common) for display
+  const displayBases = allBases.slice(0, 50);
+  // Ensure the secret parts are included in the display lists
+  secret.parts.forEach(p => {
+    if(p.type === 'base' && !displayBases.includes(p.text)) displayBases.push(p.text);
+    if(p.type === 'prefix' && !displayPrefixes.includes(p.text)) displayPrefixes.push(p.text);
+    if(p.type === 'suffix' && !displaySuffixes.includes(p.text)) displaySuffixes.push(p.text);
   });
+  // Build the shownTokens list: prefixes, bases, suffixes
+  shownTokens = [];
+  displayPrefixes.forEach(txt => shownTokens.push({ type:'prefix', text: txt }));
+  displayBases.forEach(txt => shownTokens.push({ type:'base', text: txt }));
+  displaySuffixes.forEach(txt => shownTokens.push({ type:'suffix', text: txt }));
 
+  // Initialize token states to unknown
   shownTokens.forEach(t => tokenState.set(keyFor(t), ''));
   renderTokens();
 
-  // Build hint queue from secret parts (prefix -> base -> suffix)
-  hintQueue = secret.parts.map(p=>({type:p.type, text:p.text, meaning:morphemeMeaning(p.text)}));
-  hintQueue.sort((a,b)=> (a.type==='prefix'?0:a.type==='base'?1:2) - (b.type==='prefix'?0:b.type==='base'?1:2));
+  // Build hint queue: start with definitions of the secret parts (prefix → base → suffix)
+  hintQueue = secret.parts.map(p => ({ type: p.type, text: p.text, meaning: morphemeMeaning(p.text) }));
+  // Sort so prefix hints come first, then base, then suffix
+  hintQueue.sort((a, b) => (a.type === 'prefix' ? 0 : a.type === 'base' ? 1 : 2) - (b.type === 'prefix' ? 0 : b.type === 'base' ? 1 : 2));
+  // Append a combined definition hint: join the meanings of each part into a simple phrase
+  const combinedMeaning = secret.parts.map(p => morphemeMeaning(p.text)).join(' ');
+  hintQueue.push({ type: 'definition', text: 'definition', meaning: combinedMeaning });
+  // Append a base-word hint: reveal the base/root text of the secret
+  const basePart = secret.parts.find(p => p.type === 'base');
+  if(basePart){
+    hintQueue.push({ type: 'base-word', text: basePart.text, meaning: basePart.text });
+  }
 
-  // Affix/base hint hidden until first guess
+  // Hide the hint panel until the player requests a hint
   renderHint(null);
 }
 
@@ -407,10 +450,26 @@ function addFeedRow(guessWord, parts){
 }
 
 function nextHint(){
-  // Reveal the next hint in the queue
+  // Reveal the next hint in the queue. Depending on the type of hint,
+  // customise the message displayed. When the queue is exhausted,
+  // disable the hint button.
   const next = hintQueue.shift();
-  renderHint(next || null);
-  // Disable the hint button when no more hints remain
+  if(!next){
+    renderHint(null);
+    if(els.hintBtn) els.hintBtn.disabled = true;
+    return;
+  }
+  // Special handling for definition and base‑word hints
+  if(next.type === 'definition'){
+    els.hint.style.display = 'block';
+    els.hint.innerHTML = `Hint: The word can be understood as “${next.meaning}”.`;
+  } else if(next.type === 'base-word'){
+    els.hint.style.display = 'block';
+    els.hint.innerHTML = `Hint: The base/root of the secret word is <strong>${next.meaning}</strong>.`;
+  } else {
+    // For prefix/base/suffix hints, use the generic renderer
+    renderHint(next);
+  }
   if(hintQueue.length === 0 && els.hintBtn){
     els.hintBtn.disabled = true;
   }
@@ -445,7 +504,10 @@ function handleSubmit(){
   addFeedRow(guess, res.parts);
   applyTokenColors(res.hits, res.misses);
 
-  roundsLeft--; updateRounds(); nextHint();
+  roundsLeft--; updateRounds();
+
+  // Reset hint usage for the next round now that a guess has been submitted
+  hintUsedThisRound = false;
 
   if(guess.toLowerCase() === secret.word.toLowerCase()){
     els.roundsLeft.textContent = 'You solved it!';
@@ -466,12 +528,23 @@ function init(){
   // Handle additional hint button
   document.getElementById('hintBtn').addEventListener('click', () => {
     if(revealed) return;
-    // If the player clicked a chip, reveal a hint for that affix/base instead of the next secret hint
+    // Only allow one hint per round.  If a hint has already been used,
+    // do nothing further.  The player must make a guess to unlock
+    // another hint on the next round.
+    if(hintUsedThisRound){
+      return;
+    }
+    // If the player clicked a chip, reveal a hint for that affix/base
+    // instead of the next secret hint.  This does not consume the
+    // secret hint queue but still counts as the hint for this round.
     if(selectedChip){
       showChipHint();
+      hintUsedThisRound = true;
     } else {
-      // Otherwise, reveal the next hint from the queue
+      // Otherwise, reveal the next hint from the queue.  This may
+      // exhaust the queue and disable the button internally.
       nextHint();
+      hintUsedThisRound = true;
     }
   });
   // start
