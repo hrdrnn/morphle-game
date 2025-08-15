@@ -269,6 +269,12 @@ function renderTokens(){
     chip.innerHTML = `<span>${tok.text}</span> <span class="mini">${tok.type}</span>`;
     chip.title = `${tok.type} • ${morphemeMeaning(tok.text) || '—'}`;
     chip.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); }});
+    // When a chip is clicked, append its morpheme text to the guess input field.
+    chip.addEventListener('click', () => {
+      els.guessInput.value += tok.text;
+      // Keep focus on the input so players can continue typing or submit.
+      els.guessInput.focus();
+    });
     els.tokenGrid.appendChild(chip);
   });
 }

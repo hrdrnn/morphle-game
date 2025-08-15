@@ -1,27 +1,15 @@
 const MORPHEMES = {
-  "anti": {
-    "type": "prefix",
-    "meaning": "against"
-  },
-  "auto": {
-    "type": "base",
-    "meaning": "self"
-  },
-  "bi": {
-    "type": "prefix",
-    "meaning": "two"
-  },
-  "tri": {
-    "type": "prefix",
-    "meaning": "three"
-  },
-  "multi": {
-    "type": "prefix",
-    "meaning": "many"
-  },
   "re": {
     "type": "prefix",
-    "meaning": "again"
+    "meaning": "again/back"
+  },
+  "in": {
+    "type": "prefix",
+    "meaning": "not/in"
+  },
+  "un": {
+    "type": "prefix",
+    "meaning": "not"
   },
   "pre": {
     "type": "prefix",
@@ -43,6 +31,14 @@ const MORPHEMES = {
     "type": "prefix",
     "meaning": "above"
   },
+  "anti": {
+    "type": "prefix",
+    "meaning": "against"
+  },
+  "auto": {
+    "type": "prefix",
+    "meaning": "self"
+  },
   "inter": {
     "type": "prefix",
     "meaning": "between"
@@ -57,23 +53,23 @@ const MORPHEMES = {
   },
   "de": {
     "type": "prefix",
-    "meaning": "down; away"
+    "meaning": "down/away"
   },
   "dis": {
     "type": "prefix",
-    "meaning": "not; opposite of"
+    "meaning": "not/opposite of"
   },
   "micro": {
-    "type": "base",
+    "type": "prefix",
     "meaning": "small"
   },
   "tele": {
-    "type": "base",
+    "type": "prefix",
     "meaning": "far"
   },
   "con": {
     "type": "prefix",
-    "meaning": "with; together"
+    "meaning": "with/together"
   },
   "peri": {
     "type": "prefix",
@@ -85,15 +81,11 @@ const MORPHEMES = {
   },
   "im": {
     "type": "prefix",
-    "meaning": "not; into"
-  },
-  "in": {
-    "type": "prefix",
-    "meaning": "not; into"
+    "meaning": "not"
   },
   "ex": {
     "type": "prefix",
-    "meaning": "out of"
+    "meaning": "out/from"
   },
   "sup": {
     "type": "prefix",
@@ -103,21 +95,13 @@ const MORPHEMES = {
     "type": "prefix",
     "meaning": "not"
   },
-  "un": {
-    "type": "prefix",
-    "meaning": "not"
-  },
-  "mis": {
-    "type": "prefix",
-    "meaning": "wrong; bad"
-  },
   "over": {
     "type": "prefix",
-    "meaning": "over"
+    "meaning": "too much/above"
   },
   "under": {
     "type": "prefix",
-    "meaning": "below"
+    "meaning": "too little/below"
   },
   "neo": {
     "type": "prefix",
@@ -127,9 +111,21 @@ const MORPHEMES = {
     "type": "prefix",
     "meaning": "one"
   },
+  "bi": {
+    "type": "prefix",
+    "meaning": "two"
+  },
+  "tri": {
+    "type": "prefix",
+    "meaning": "three"
+  },
+  "multi": {
+    "type": "prefix",
+    "meaning": "many"
+  },
   "co": {
     "type": "prefix",
-    "meaning": "together"
+    "meaning": "together/with"
   },
   "counter": {
     "type": "prefix",
@@ -179,201 +175,9 @@ const MORPHEMES = {
     "type": "prefix",
     "meaning": "before"
   },
-  "able": {
-    "type": "suffix",
-    "meaning": "able to"
-  },
-  "ible": {
-    "type": "suffix",
-    "meaning": "capable of being"
-  },
-  "al": {
-    "type": "suffix",
-    "meaning": "related to"
-  },
-  "er": {
-    "type": "suffix",
-    "meaning": "one who"
-  },
-  "or": {
-    "type": "suffix",
-    "meaning": "one who"
-  },
-  "ation": {
-    "type": "suffix",
-    "meaning": "act of"
-  },
-  "tion": {
-    "type": "suffix",
-    "meaning": "act of"
-  },
-  "sion": {
-    "type": "suffix",
-    "meaning": "state of"
-  },
-  "ist": {
-    "type": "suffix",
-    "meaning": "one who"
-  },
-  "ism": {
-    "type": "suffix",
-    "meaning": "practice of"
-  },
-  "logy": {
-    "type": "suffix",
-    "meaning": "study of"
-  },
-  "ology": {
-    "type": "suffix",
-    "meaning": "study of"
-  },
-  "ness": {
-    "type": "suffix",
-    "meaning": "state of"
-  },
-  "ment": {
-    "type": "suffix",
-    "meaning": "result of"
-  },
-  "ence": {
-    "type": "suffix",
-    "meaning": "state of"
-  },
-  "ance": {
-    "type": "suffix",
-    "meaning": "state of"
-  },
-  "ize": {
-    "type": "suffix",
-    "meaning": "to make"
-  },
-  "ify": {
-    "type": "suffix",
-    "meaning": "to make"
-  },
-  "ous": {
-    "type": "suffix",
-    "meaning": "full of"
-  },
-  "less": {
-    "type": "suffix",
-    "meaning": "without"
-  },
-  "ful": {
-    "type": "suffix",
-    "meaning": "full of"
-  },
-  "ship": {
-    "type": "suffix",
-    "meaning": "state of"
-  },
-  "ary": {
-    "type": "suffix",
-    "meaning": "related to"
-  },
-  "ery": {
-    "type": "suffix",
-    "meaning": "place of"
-  },
-  "tive": {
-    "type": "suffix",
-    "meaning": "tending to"
-  },
-  "ative": {
-    "type": "suffix",
-    "meaning": "tending to"
-  },
-  "tory": {
-    "type": "suffix",
-    "meaning": "place for"
-  },
-  "hood": {
-    "type": "suffix",
-    "meaning": "state of"
-  },
-  "dom": {
-    "type": "suffix",
-    "meaning": "state of"
-  },
-  "ed": {
-    "type": "suffix",
-    "meaning": "past tense"
-  },
-  "ing": {
-    "type": "suffix",
-    "meaning": "present participle/gerund"
-  },
-  "s": {
-    "type": "suffix",
-    "meaning": "plural/third person"
-  },
-  "es": {
-    "type": "suffix",
-    "meaning": "plural"
-  },
-  "ant": {
-    "type": "suffix",
-    "meaning": "agent"
-  },
-  "ent": {
-    "type": "suffix",
-    "meaning": "agent"
-  },
-  "ian": {
-    "type": "suffix",
-    "meaning": "related to"
-  },
-  "ial": {
-    "type": "suffix",
-    "meaning": "pertaining to"
-  },
-  "ic": {
-    "type": "suffix",
-    "meaning": "pertaining to"
-  },
-  "ity": {
-    "type": "suffix",
-    "meaning": "state of"
-  },
-  "ise": {
-    "type": "suffix",
-    "meaning": "to make"
-  },
-  "ite": {
-    "type": "suffix",
-    "meaning": "related to"
-  },
-  "ette": {
-    "type": "suffix",
-    "meaning": "small"
-  },
-  "age": {
-    "type": "suffix",
-    "meaning": "collection"
-  },
-  "ious": {
-    "type": "suffix",
-    "meaning": "full of"
-  },
-  "ologic": {
-    "type": "suffix",
-    "meaning": "study of"
-  },
-  "ly": {
-    "type": "suffix",
-    "meaning": "manner"
-  },
-  "ward": {
-    "type": "suffix",
-    "meaning": "direction"
-  },
-  "wards": {
-    "type": "suffix",
-    "meaning": "direction"
-  },
-  "wise": {
-    "type": "suffix",
-    "meaning": "manner"
+  "mis": {
+    "type": "prefix",
+    "meaning": "wrongly"
   },
   "port": {
     "type": "base",
@@ -405,7 +209,7 @@ const MORPHEMES = {
   },
   "dict": {
     "type": "base",
-    "meaning": "say; speak"
+    "meaning": "say/speak"
   },
   "vis": {
     "type": "base",
@@ -490,5 +294,311 @@ const MORPHEMES = {
   "phone": {
     "type": "base",
     "meaning": "sound"
+  },
+  "tract": {
+    "type": "base",
+    "meaning": "pull/draw"
+  },
+  "duce": {
+    "type": "base",
+    "meaning": "lead/bring"
+  },
+  "duct": {
+    "type": "base",
+    "meaning": "lead"
+  },
+  "mit": {
+    "type": "base",
+    "meaning": "send"
+  },
+  "miss": {
+    "type": "base",
+    "meaning": "send"
+  },
+  "ject": {
+    "type": "base",
+    "meaning": "throw"
+  },
+  "act": {
+    "type": "base",
+    "meaning": "do"
+  },
+  "press": {
+    "type": "base",
+    "meaning": "press"
+  },
+  "mot": {
+    "type": "base",
+    "meaning": "move"
+  },
+  "vent": {
+    "type": "base",
+    "meaning": "come"
+  },
+  "log": {
+    "type": "base",
+    "meaning": "word/study"
+  },
+  "gram": {
+    "type": "base",
+    "meaning": "letter/written"
+  },
+  "phon": {
+    "type": "base",
+    "meaning": "sound"
+  },
+  "vid": {
+    "type": "base",
+    "meaning": "see"
+  },
+  "calc": {
+    "type": "base",
+    "meaning": "stone/calc"
+  },
+  "num": {
+    "type": "base",
+    "meaning": "number"
+  },
+  "econ": {
+    "type": "base",
+    "meaning": "house/management"
+  },
+  "jur": {
+    "type": "base",
+    "meaning": "law"
+  },
+  "polit": {
+    "type": "base",
+    "meaning": "city/citizen"
+  },
+  "hist": {
+    "type": "base",
+    "meaning": "past"
+  },
+  "metr": {
+    "type": "base",
+    "meaning": "measure"
+  },
+  "phys": {
+    "type": "base",
+    "meaning": "nature"
+  },
+  "chem": {
+    "type": "base",
+    "meaning": "alchemy/chemistry"
+  },
+  "astr": {
+    "type": "base",
+    "meaning": "star"
+  },
+  "mono": {
+    "type": "base",
+    "meaning": "one"
+  },
+  "cycl": {
+    "type": "base",
+    "meaning": "circle/wheel"
+  },
+  "able": {
+    "type": "suffix",
+    "meaning": "able to"
+  },
+  "ible": {
+    "type": "suffix",
+    "meaning": "capable of being"
+  },
+  "al": {
+    "type": "suffix",
+    "meaning": "related to"
+  },
+  "er": {
+    "type": "suffix",
+    "meaning": "one who/that which"
+  },
+  "or": {
+    "type": "suffix",
+    "meaning": "one who/that which"
+  },
+  "ation": {
+    "type": "suffix",
+    "meaning": "act/process"
+  },
+  "tion": {
+    "type": "suffix",
+    "meaning": "act/process"
+  },
+  "sion": {
+    "type": "suffix",
+    "meaning": "act/process"
+  },
+  "ist": {
+    "type": "suffix",
+    "meaning": "one who practices"
+  },
+  "ism": {
+    "type": "suffix",
+    "meaning": "belief/system"
+  },
+  "logy": {
+    "type": "suffix",
+    "meaning": "study of"
+  },
+  "ology": {
+    "type": "suffix",
+    "meaning": "study of"
+  },
+  "ness": {
+    "type": "suffix",
+    "meaning": "state/quality"
+  },
+  "ment": {
+    "type": "suffix",
+    "meaning": "result/state"
+  },
+  "ence": {
+    "type": "suffix",
+    "meaning": "state/quality"
+  },
+  "ance": {
+    "type": "suffix",
+    "meaning": "state/quality"
+  },
+  "ize": {
+    "type": "suffix",
+    "meaning": "make/render"
+  },
+  "ify": {
+    "type": "suffix",
+    "meaning": "make"
+  },
+  "ous": {
+    "type": "suffix",
+    "meaning": "full of"
+  },
+  "less": {
+    "type": "suffix",
+    "meaning": "without"
+  },
+  "ful": {
+    "type": "suffix",
+    "meaning": "full of"
+  },
+  "ship": {
+    "type": "suffix",
+    "meaning": "state/office"
+  },
+  "ary": {
+    "type": "suffix",
+    "meaning": "related to"
+  },
+  "ery": {
+    "type": "suffix",
+    "meaning": "place for"
+  },
+  "tive": {
+    "type": "suffix",
+    "meaning": "tending to"
+  },
+  "ative": {
+    "type": "suffix",
+    "meaning": "tending to"
+  },
+  "tory": {
+    "type": "suffix",
+    "meaning": "place for"
+  },
+  "hood": {
+    "type": "suffix",
+    "meaning": "state/condition"
+  },
+  "dom": {
+    "type": "suffix",
+    "meaning": "state/domain"
+  },
+  "ed": {
+    "type": "suffix",
+    "meaning": "past"
+  },
+  "ing": {
+    "type": "suffix",
+    "meaning": "present participle"
+  },
+  "s": {
+    "type": "suffix",
+    "meaning": "plural"
+  },
+  "es": {
+    "type": "suffix",
+    "meaning": "plural"
+  },
+  "ant": {
+    "type": "suffix",
+    "meaning": "one who/thing that"
+  },
+  "ent": {
+    "type": "suffix",
+    "meaning": "one who/thing that"
+  },
+  "ian": {
+    "type": "suffix",
+    "meaning": "related to"
+  },
+  "ial": {
+    "type": "suffix",
+    "meaning": "pertaining to"
+  },
+  "ic": {
+    "type": "suffix",
+    "meaning": "of/pertaining to"
+  },
+  "ity": {
+    "type": "suffix",
+    "meaning": "state/quality"
+  },
+  "ise": {
+    "type": "suffix",
+    "meaning": "make/render"
+  },
+  "ite": {
+    "type": "suffix",
+    "meaning": "related to"
+  },
+  "ette": {
+    "type": "suffix",
+    "meaning": "small"
+  },
+  "age": {
+    "type": "suffix",
+    "meaning": "collection"
+  },
+  "ious": {
+    "type": "suffix",
+    "meaning": "full of"
+  },
+  "ologic": {
+    "type": "suffix",
+    "meaning": "study of"
+  },
+  "ly": {
+    "type": "suffix",
+    "meaning": "manner"
+  },
+  "ward": {
+    "type": "suffix",
+    "meaning": "direction"
+  },
+  "wards": {
+    "type": "suffix",
+    "meaning": "direction"
+  },
+  "wise": {
+    "type": "suffix",
+    "meaning": "manner"
+  },
+  "y": {
+    "type": "suffix",
+    "meaning": "characterized by"
   }
 };
+
+if (typeof module !== "undefined") { module.exports = { MORPHEMES }; }
