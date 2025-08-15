@@ -29,6 +29,27 @@
   }
   button:hover{background:#20252c}
   button:focus{outline:2px solid var(--focus); outline-offset:2px}
+
+  /* Difficulty buttons styling */
+  .difficulty{
+    display:flex;
+    gap:6px;
+    margin-left:12px;
+  }
+  .difficulty .diff-btn{
+    font-size:13px;
+    padding:6px 10px;
+    border-radius:8px;
+    border:1px solid #2a2f37;
+    background:var(--chip);
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .difficulty .diff-btn.active{
+    background:color-mix(in oklab, var(--accent) 30%, var(--chip));
+    border-color:var(--accent);
+    color:#fff;
+  }
   .board{display:grid; gap:16px; grid-template-columns:1.2fr 1fr;}
   .left, .right{background:var(--panel); border:1px solid #2a2f37; border-radius:14px; padding:16px;}
   .section{display:grid; gap:10px;}
@@ -94,6 +115,17 @@
       </div>
       <div class="bar">
         <button id="newGameBtn" aria-label="Start new game">New Game</button>
+    <!-- Difficulty selection buttons -->
+    <div class="difficulty" role="group" aria-label="Select difficulty">
+      <!-- Difficulty buttons display the approximate year levels they target.  The
+           "Easy" mode suits grades 5–7, "Medium" suits grades 8–10 and
+           "Hard" suits grades 11 and beyond.  These labels are purely
+           descriptive and do not affect the underlying difficulty values
+           stored in the word bank (which remain 'Easy', 'Medium' or 'Hard'). -->
+      <button id="easyBtn" data-difficulty="Easy" class="diff-btn">Easy (Y5–7)</button>
+      <button id="mediumBtn" data-difficulty="Medium" class="diff-btn">Medium (Y8–10)</button>
+      <button id="hardBtn" data-difficulty="Hard" class="diff-btn">Hard (Y11+)</button>
+    </div>
       </div>
     </header>
 
@@ -241,6 +273,9 @@ let shownTokens = [];            // list of {type,text}
 let hintQueue = [];              // [{type,text,meaning}]
 let revealed = false;
 
+// Difficulty setting: can be 'Easy', 'Medium' or 'Hard'. Defaults to 'Easy'.
+let selectedDifficulty = 'Easy';
+
 // Track the most recently clicked chip so the Hint button can reveal its meaning
 let selectedChip = null;
 
@@ -269,7 +304,7 @@ const els = {
 const sample = (arr,n) => { const a=arr.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a.slice(0,Math.max(0,Math.min(n,a.length))); };
 const keyFor = (obj) => `${obj.type}:${obj.text}`;
 const morphemeMeaning = (text) => MORPHEMES[text]?.meaning ?? '';
-const WORD_LOOKUP = new Map(WORDS.map(w => [w.word.toLowerCase(), w.parts]));
+let WORD_LOOKUP = new Map();
 
 /* ======== Rendering ======== */
 function renderWordList(){
@@ -347,7 +382,17 @@ function updateRounds(){
 /* ======== Game flow ======== */
 function newGame(){
   // reset
-  secret = WORDS[Math.floor(Math.random()*WORDS.length)];
+  // Filter available words by selected difficulty
+  const available = (typeof WORDS !== 'undefined') ? WORDS.filter(w => {
+    if (!selectedDifficulty) return true;
+    return w.difficulty === selectedDifficulty;
+  }) : [];
+  // If no words match the difficulty (should not happen), fall back to all words
+  const pool = available.length > 0 ? available : WORDS;
+  // Choose a secret word from the filtered pool
+  secret = pool[Math.floor(Math.random() * pool.length)];
+  // Rebuild the lookup map for the current difficulty to validate guesses
+  WORD_LOOKUP = new Map(pool.map(w => [w.word.toLowerCase(), w.parts]));
   roundsLeft = ROUNDS_MAX; revealed = false; tokenState.clear();
   els.feed.innerHTML = ''; els.error.textContent = ''; els.reveal.style.display='none';
   updateRounds();
@@ -545,6 +590,31 @@ function init(){
       // exhaust the queue and disable the button internally.
       nextHint();
       hintUsedThisRound = true;
+    }
+  });
+
+  // Difficulty button event listeners
+  const diffButtons = document.querySelectorAll('.diff-btn');
+  diffButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const selected = btn.getAttribute('data-difficulty');
+      selectedDifficulty = selected;
+      // Update active classes
+      diffButtons.forEach(b => {
+        if (b.getAttribute('data-difficulty') === selected) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
+      // Start new game with the new difficulty
+      newGame();
+    });
+  });
+  // Set initial active difficulty button
+  diffButtons.forEach(b => {
+    if (b.getAttribute('data-difficulty') === selectedDifficulty) {
+      b.classList.add('active');
     }
   });
   // start
