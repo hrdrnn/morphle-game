@@ -225,6 +225,9 @@ let shownTokens = [];            // list of {type,text}
 let hintQueue = [];              // [{type,text,meaning}]
 let revealed = false;
 
+// Track the most recently clicked chip so the Hint button can reveal its meaning
+let selectedChip = null;
+
 const els = {
   tokenGrid: document.getElementById('tokenGrid'),
   guessInput: document.getElementById('guessInput'),
@@ -271,7 +274,10 @@ function renderTokens(){
     chip.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); }});
     // When a chip is clicked, append its morpheme text to the guess input field.
     chip.addEventListener('click', () => {
+      // Append the morpheme text to the guess input field
       els.guessInput.value += tok.text;
+      // Remember which chip was clicked so the Hint button can show its meaning
+      selectedChip = { type: tok.type, text: tok.text };
       // Keep focus on the input so players can continue typing or submit.
       els.guessInput.focus();
     });
@@ -325,6 +331,12 @@ function newGame(){
   roundsLeft = ROUNDS_MAX; revealed = false; tokenState.clear();
   els.feed.innerHTML = ''; els.error.textContent = ''; els.reveal.style.display='none';
   updateRounds();
+
+  // Reset selected chip at the start of a new game
+  selectedChip = null;
+
+  // Clear the guess input field for a fresh start
+  els.guessInput.value = '';
 
   // Re-enable the hint button for the new game
   if(els.hintBtn){
@@ -404,6 +416,18 @@ function nextHint(){
   }
 }
 
+// Show a hint based on a selected chip (affix/base/root). Does not consume the secret hint queue.
+function showChipHint() {
+  if(!selectedChip) return;
+  const { type, text } = selectedChip;
+  // Look up the meaning from the MORPHEMES dictionary (if available)
+  const meaning = MORPHEMES[text] ? MORPHEMES[text].meaning : '';
+  // Render the hint panel
+  renderHint({ type, text, meaning });
+  // Clear the selected chip so the next Hint click will revert to the normal queue
+  selectedChip = null;
+}
+
 function handleSubmit(){
   if(revealed) return;
   const guess = (els.guessInput.value||'').trim();
@@ -441,8 +465,14 @@ function init(){
   document.getElementById('newGameBtn').addEventListener('click', newGame);
   // Handle additional hint button
   document.getElementById('hintBtn').addEventListener('click', () => {
-    // Reveal one additional hint when clicked
-    if(!revealed) nextHint();
+    if(revealed) return;
+    // If the player clicked a chip, reveal a hint for that affix/base instead of the next secret hint
+    if(selectedChip){
+      showChipHint();
+    } else {
+      // Otherwise, reveal the next hint from the queue
+      nextHint();
+    }
   });
   // start
   newGame();
