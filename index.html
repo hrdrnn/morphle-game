@@ -283,6 +283,11 @@ let selectedChip = null;
 // additional hint requests will be ignored until the player submits a guess.
 let hintUsedThisRound = false;
 
+// Maintain a running list of all hints shown during the current game.
+// Each hint is stored as an HTML string.  When the player requests a new
+// hint, it is appended to this list and the entire list is re-rendered.
+let hintsShown = [];
+
 const els = {
   tokenGrid: document.getElementById('tokenGrid'),
   guessInput: document.getElementById('guessInput'),
@@ -341,10 +346,38 @@ function renderTokens(){
 }
 
 function renderHint(nextHint){
-  if(!nextHint){ els.hint.style.display='none'; return; }
-  els.hint.style.display='block';
-  const label = nextHint.type === 'base' ? 'base/root' : nextHint.type;
-  els.hint.innerHTML = `Hint: The <strong>${label}</strong> means “${nextHint.meaning}”.`;
+  /*
+   * Append the new hint (if provided) to the running list.  Each hint is
+   * rendered as its own <div> so that multiple hints can accumulate on
+   * screen.  The message depends on the hint type:
+   *   - For prefix/base/suffix hints, we use “The <prefix/base/suffix> means …”.
+   *   - For a definition hint, we show “The word can be understood as …”.
+   *   - For a base‑word hint, we reveal the base/root text.
+   * When nextHint is null, we simply refresh the displayed list without
+   * adding anything.  If there are no hints yet, the hint panel is hidden.
+   */
+  if(nextHint){
+    let hintHtml;
+    if(nextHint.type === 'definition'){
+      // Combined definition hint: show the concatenated meaning of all parts
+      hintHtml = `Hint: The word can be understood as “${nextHint.meaning}”.`;
+    } else if(nextHint.type === 'base-word'){
+      // Base-word hint: reveal the root text of the secret word
+      hintHtml = `Hint: The base/root of the secret word is <strong>${nextHint.meaning}</strong>.`;
+    } else {
+      // Standard affix/base hint
+      const label = nextHint.type === 'base' ? 'base/root' : nextHint.type;
+      hintHtml = `Hint: The <strong>${label}</strong> means “${nextHint.meaning}”.`;
+    }
+    hintsShown.push(hintHtml);
+  }
+  if(hintsShown.length === 0){
+    els.hint.style.display='none';
+    els.hint.innerHTML = '';
+  } else {
+    els.hint.style.display='block';
+    els.hint.innerHTML = hintsShown.map(h => `<div>${h}</div>`).join('');
+  }
 }
 
 function renderSubjectHint(subject){
@@ -402,6 +435,10 @@ function newGame(){
 
   // Reset hint usage so players can request a hint in the first round
   hintUsedThisRound = false;
+
+  // Clear any previously shown hints and hide the hint panel
+  hintsShown = [];
+  renderHint(null);
 
   // Clear the guess input field for a fresh start
   els.guessInput.value = '';
@@ -495,26 +532,18 @@ function addFeedRow(guessWord, parts){
 }
 
 function nextHint(){
-  // Reveal the next hint in the queue. Depending on the type of hint,
-  // customise the message displayed. When the queue is exhausted,
-  // disable the hint button.
+  // Reveal the next hint in the queue.  All hints are passed through
+  // renderHint() so that they accumulate on screen.  When the queue
+  // is exhausted, disable the hint button.
   const next = hintQueue.shift();
   if(!next){
     renderHint(null);
     if(els.hintBtn) els.hintBtn.disabled = true;
     return;
   }
-  // Special handling for definition and base‑word hints
-  if(next.type === 'definition'){
-    els.hint.style.display = 'block';
-    els.hint.innerHTML = `Hint: The word can be understood as “${next.meaning}”.`;
-  } else if(next.type === 'base-word'){
-    els.hint.style.display = 'block';
-    els.hint.innerHTML = `Hint: The base/root of the secret word is <strong>${next.meaning}</strong>.`;
-  } else {
-    // For prefix/base/suffix hints, use the generic renderer
-    renderHint(next);
-  }
+  // Use the unified renderHint() function for all hint types
+  renderHint(next);
+  // Disable the hint button when no more hints remain
   if(hintQueue.length === 0 && els.hintBtn){
     els.hintBtn.disabled = true;
   }
