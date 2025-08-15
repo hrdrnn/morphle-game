@@ -7,7 +7,7 @@
 <style>
   :root{
     --bg:#111316; --panel:#181b20; --ink:#e7ebf3; --muted:#a7b0c0;
-    --accent:#6aa8ff; --good:#2ea043; --bad:#3a3f47; --warn:#e0a800;
+    --accent:#6aa8ff; --good:#2ea043; --bad:#e55353; --warn:#e0a800;
     --chip:#242a33; --chipHover:#2b323d; --focus:#8cc1ff; --red:#e55353;
     /* subject hues */
     --english:#5ea2ff; --science:#2ecc71; --hums:#f5b942; --maths:#b271ff;
@@ -40,7 +40,7 @@
   .chip .mini{font-size:11px; color:var(--muted); font-weight:500}
   .chip:hover{background:var(--chipHover)}
   .chip.correct{background:color-mix(in oklab, var(--good) 20%, var(--chip)); border-color:var(--good)}
-  .chip.incorrect{background:var(--bad); color:#9aa3b1; border-color:#2d323a}
+  .chip.incorrect{background:var(--bad); color:#ffffff; border-color:var(--bad)}
   .legend{display:flex; gap:10px; align-items:center; color:var(--muted); font-size:12px}
   .legend .swatch{width:14px; height:14px; border-radius:4px; border:1px solid #2a2f37}
   .swatch.good{background:var(--good); border-color:var(--good)}
@@ -63,7 +63,7 @@
   .row .parts{display:flex; gap:6px; flex-wrap:wrap}
   .part{border:1px dashed #3a404b; padding:3px 8px; border-radius:7px; font-size:13px;}
   .part.good{border-style:solid; border-color:var(--good)}
-  .part.bad{border-style:solid; border-color:var(--bad); color:#9aa3b1}
+  .part.bad{border-style:solid; border-color:var(--bad); color:var(--bad)}
   footer{display:flex; justify-content:center; color:var(--muted); font-size:12px; margin-top:4px}
   .reveal{background:#122015; border:1px solid #203724; padding:10px 12px; border-radius:10px;}
   .error{color:var(--red); font-weight:700}
@@ -99,9 +99,11 @@
         <div id="hintSubject" class="hintSubject" role="note" aria-live="polite" style="display:none"></div>
 
         <div class="guessbar">
-          <input id="guessInput" type="text" placeholder="Type a word from the list…" list="wordsList" aria-label="Guess a word" />
-          <datalist id="wordsList"></datalist>
+          <!-- Input without datalist to hide the full word list -->
+          <input id="guessInput" type="text" placeholder="Type your guess…" aria-label="Guess a word" />
           <button id="submitBtn">Submit</button>
+          <!-- Additional Hint button to reveal extra hints -->
+          <button id="hintBtn" aria-label="Get another hint">Hint</button>
           <span class="rounds" id="roundsLeft">5 rounds left</span>
         </div>
         <div id="error" class="error" role="alert" aria-live="assertive"></div>
@@ -123,9 +125,14 @@
     <footer>Built for prefix–base–suffix “Map to Meaning” practice.</footer>
   </div>
 
+<!-- Load morpheme and word data from external files -->
+<script src="morphemes_data.js"></script>
+<script src="words_data.js"></script>
 <script>
 /* ======== Data: morphemes (type + meaning) ======== */
-const MORPHEMES = {
+/* The original MORPHEMES definition is kept for reference but renamed to avoid
+   overriding the globally loaded data. */
+const MORPHEMES_OLD = {
   /* Prefixes */
   in:{type:'prefix',meaning:'not'}, im:{type:'prefix',meaning:'not'},
   il:{type:'prefix',meaning:'not'}, ir:{type:'prefix',meaning:'not'},
@@ -160,7 +167,9 @@ const MORPHEMES = {
 /* ======== Word bank: word + parts + subject ========
    Subjects: 'English', 'Science', 'Humanities', 'Mathematics'
 */
-const WORDS = [
+/* The original WORDS list is kept for reference but renamed to avoid
+   overriding the globally loaded data. */
+const WORDS_OLD = [
   {word:'incredible',    subject:'English',
     parts:[{type:'prefix',text:'in'},{type:'base',text:'cred'},{type:'suffix',text:'ible'}]},
   {word:'prediction',    subject:'Science',
@@ -218,9 +227,9 @@ let revealed = false;
 
 const els = {
   tokenGrid: document.getElementById('tokenGrid'),
-  wordsList: document.getElementById('wordsList'),
   guessInput: document.getElementById('guessInput'),
   submitBtn: document.getElementById('submitBtn'),
+  hintBtn: document.getElementById('hintBtn'),
   roundsLeft: document.getElementById('roundsLeft'),
   feed: document.getElementById('feed'),
   hint: document.getElementById('hint'),
@@ -311,6 +320,11 @@ function newGame(){
   els.feed.innerHTML = ''; els.error.textContent = ''; els.reveal.style.display='none';
   updateRounds();
 
+  // Re-enable the hint button for the new game
+  if(els.hintBtn){
+    els.hintBtn.disabled = false;
+  }
+
   // Subject hint shown immediately
   renderSubjectHint(secret.subject);
 
@@ -375,15 +389,21 @@ function addFeedRow(guessWord, parts){
 }
 
 function nextHint(){
-  renderHint(hintQueue.shift() || null);
+  // Reveal the next hint in the queue
+  const next = hintQueue.shift();
+  renderHint(next || null);
+  // Disable the hint button when no more hints remain
+  if(hintQueue.length === 0 && els.hintBtn){
+    els.hintBtn.disabled = true;
+  }
 }
 
 function handleSubmit(){
   if(revealed) return;
   const guess = (els.guessInput.value||'').trim();
   els.error.textContent = '';
-  if(!guess){ els.error.textContent = 'Enter a word from the list.'; return; }
-  if(!WORD_LOOKUP.has(guess.toLowerCase())){ els.error.textContent = 'That word is not in this game’s list.'; return; }
+  if(!guess){ els.error.textContent = 'Enter a word.'; return; }
+  if(!WORD_LOOKUP.has(guess.toLowerCase())){ els.error.textContent = 'That word is not in this game’s word bank.'; return; }
 
   // Require overlap with visible table
   const guessParts = WORD_LOOKUP.get(guess.toLowerCase());
@@ -408,12 +428,16 @@ function handleSubmit(){
 
 /* ======== Wire up ======== */
 function init(){
-  // populate guess list
-  renderWordList();
+  // No need to populate a datalist; word list is hidden from the player
   // events
   document.getElementById('submitBtn').addEventListener('click', handleSubmit);
   document.getElementById('guessInput').addEventListener('keydown', e=>{ if(e.key==='Enter'){ handleSubmit(); }});
   document.getElementById('newGameBtn').addEventListener('click', newGame);
+  // Handle additional hint button
+  document.getElementById('hintBtn').addEventListener('click', () => {
+    // Reveal one additional hint when clicked
+    if(!revealed) nextHint();
+  });
   // start
   newGame();
 }
