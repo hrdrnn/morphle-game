@@ -173,6 +173,8 @@
 
 <!-- Load morpheme and word data from external files. The generated word list
      must be loaded before words_data.js so that WORDS_GENERATED is defined. -->
+<!-- Accessible words list, curated from PET vocabulary (approx.) for ACARA/QCAA equivalence. -->
+<script src="accessible_words.js"></script>
 <script src="morphemes_data.js"></script>
 <script src="words_data_generated.js"></script>
 <script src="words_data.js"></script>
@@ -264,6 +266,39 @@ const WORDS_OLD = [
     parts:[{type:'base',text:'chrono'},{type:'suffix',text:'logy'}]}
 ];
 
+/* ======== Merge accessible words with the morphological word list ======== */
+// If the global ACCESSIBLE_WORDS array (loaded from accessible_words.js) exists,
+// append its entries to the WORDS array loaded from words_data.js. This ensures
+// all accessible vocabulary words are eligible as secrets and guesses.  We
+// perform the merge before any game logic runs.  If WORDS is undefined
+// (which should not happen), we initialise it as an empty array before
+// concatenation.
+if (typeof window !== 'undefined' && window.ACCESSIBLE_WORDS) {
+  if (typeof window.WORDS === 'undefined') {
+    window.WORDS = [];
+  }
+  // Avoid duplicate entries by comparing the word property.  Since
+  // ACCESSIBLE_WORDS may contain words already present in the morphological
+  // dataset, we filter out duplicates based on lowercase word text.
+  const existingWordsSet = new Set(window.WORDS.map(w => w.word.toLowerCase()));
+  const toAdd = window.ACCESSIBLE_WORDS.filter(entry => !existingWordsSet.has(entry.word.toLowerCase())).map(entry => {
+    // Assign a difficulty level to accessible words based on their number of parts.
+    // If no difficulty property exists, we use 1 part → Easy, 2 parts → Medium, 3+ parts → Hard.
+    if (!('difficulty' in entry)) {
+      const partsCount = Array.isArray(entry.parts) ? entry.parts.length : 1;
+      let diff;
+      if (partsCount === 1) diff = 'Easy';
+      else if (partsCount === 2) diff = 'Medium';
+      else diff = 'Hard';
+      entry.difficulty = diff;
+    }
+    // Tag accessible entries so we can distinguish them from generated words
+    entry.source = 'accessible';
+    return entry;
+  });
+  window.WORDS = window.WORDS.concat(toAdd);
+}
+
 /* ======== Game state ======== */
 const ROUNDS_MAX = 5;
 let secret = null;               // {word, parts, subject}
@@ -287,6 +322,9 @@ let hintUsedThisRound = false;
 // Each hint is stored as an HTML string.  When the player requests a new
 // hint, it is appended to this list and the entire list is re-rendered.
 let hintsShown = [];
+
+// Track words guessed in the current game to prevent duplicate guesses.
+let guessedWords = new Set();
 
 const els = {
   tokenGrid: document.getElementById('tokenGrid'),
@@ -415,20 +453,38 @@ function updateRounds(){
 /* ======== Game flow ======== */
 function newGame(){
   // reset
-  // Filter available words by selected difficulty
-  const available = (typeof WORDS !== 'undefined') ? WORDS.filter(w => {
-    if (!selectedDifficulty) return true;
-    return w.difficulty === selectedDifficulty;
-  }) : [];
-  // If no words match the difficulty (should not happen), fall back to all words
-  const pool = available.length > 0 ? available : WORDS;
-  // Choose a secret word from the filtered pool
+  // Filter available words by selected difficulty and restrict secrets to
+  // accessible words (source === 'accessible') so that secret words are real
+  // vocabulary terms rather than generated combinations.  If there are
+  // insufficient accessible words for the chosen difficulty, fall back to
+  // accessible words of any difficulty; if still none, fall back to all words.
+  let available = [];
+  if (typeof WORDS !== 'undefined') {
+    available = WORDS.filter(w => {
+      const difficultyMatch = !selectedDifficulty || w.difficulty === selectedDifficulty;
+      const sourceMatch = w.source === 'accessible';
+      return difficultyMatch && sourceMatch;
+    });
+  }
+  // If no accessible words match both difficulty and source, relax difficulty
+  // constraint but still require accessible source
+  if (available.length === 0 && typeof WORDS !== 'undefined') {
+    available = WORDS.filter(w => w.source === 'accessible');
+  }
+  // Final fallback: use all words regardless of source or difficulty
+  const pool = (available && available.length > 0) ? available : WORDS;
+  // Randomly choose a secret word from the appropriate pool
   secret = pool[Math.floor(Math.random() * pool.length)];
-  // Rebuild the lookup map for the current difficulty to validate guesses
-  WORD_LOOKUP = new Map(pool.map(w => [w.word.toLowerCase(), w.parts]));
+  // Rebuild the lookup map to validate guesses.  Include all words (not
+  // just those in the pool) so that any word in the merged word bank can
+  // be guessed.  Use lowercase keys for case-insensitive lookup.
+  WORD_LOOKUP = new Map(WORDS.map(w => [w.word.toLowerCase(), w.parts]));
   roundsLeft = ROUNDS_MAX; revealed = false; tokenState.clear();
   els.feed.innerHTML = ''; els.error.textContent = ''; els.reveal.style.display='none';
   updateRounds();
+
+  // Reset guessed words so players cannot reuse guesses across games
+  guessedWords.clear();
 
   // Reset selected chip at the start of a new game
   selectedChip = null;
@@ -442,6 +498,9 @@ function newGame(){
 
   // Clear the guess input field for a fresh start
   els.guessInput.value = '';
+
+  // Set focus on the input field so players can immediately start typing
+  els.guessInput.focus();
 
   // Re-enable the hint button for the new game
   if(els.hintBtn){
@@ -566,30 +625,47 @@ function handleSubmit(){
   const guess = (els.guessInput.value||'').trim();
   els.error.textContent = '';
   if(!guess){ els.error.textContent = 'Enter a word.'; return; }
-  if(!WORD_LOOKUP.has(guess.toLowerCase())){ els.error.textContent = 'That word is not in this game’s word bank.'; return; }
+  const lowerGuess = guess.toLowerCase();
+  // Ensure the guess is in the word bank
+  if(!WORD_LOOKUP.has(lowerGuess)){
+    els.error.textContent = 'That word is not in this game’s word bank.';
+    return;
+  }
+  // Prevent duplicate guesses within a single game
+  if(guessedWords.has(lowerGuess)){
+    els.error.textContent = 'You\'ve already guessed that word.';
+    return;
+  }
+  // Mark the guess as used
+  guessedWords.add(lowerGuess);
 
-  // Require overlap with visible table
-  const guessParts = WORD_LOOKUP.get(guess.toLowerCase());
-  const visibleSet = new Set(shownTokens.map(keyFor));
-  const usesVisible = guessParts.some(p => visibleSet.has(keyFor(p)));
-  if(!usesVisible){ els.error.textContent = 'Pick a word that uses at least one piece from the table.'; return; }
-
+  // Break down the guess into its parts for scoring and display
+  const guessParts = WORD_LOOKUP.get(lowerGuess);
   const res = compareGuess(guess);
   addFeedRow(guess, res.parts);
   applyTokenColors(res.hits, res.misses);
 
-  roundsLeft--; updateRounds();
+  roundsLeft--;
+  updateRounds();
 
   // Reset hint usage for the next round now that a guess has been submitted
   hintUsedThisRound = false;
 
-  if(guess.toLowerCase() === secret.word.toLowerCase()){
+  // Check win/lose conditions
+  if(lowerGuess === secret.word.toLowerCase()){
     els.roundsLeft.textContent = 'You solved it!';
-    revealed = true; renderSecretReveal(); return;
+    revealed = true;
+    renderSecretReveal();
+    return;
   }
-  if(roundsLeft <= 0){ revealed = true; renderSecretReveal(); }
+  if(roundsLeft <= 0){
+    revealed = true;
+    renderSecretReveal();
+  }
 
-  els.guessInput.value = ''; els.guessInput.focus();
+  // Clear input for next guess and keep focus
+  els.guessInput.value = '';
+  els.guessInput.focus();
 }
 
 /* ======== Wire up ======== */
