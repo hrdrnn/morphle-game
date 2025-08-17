@@ -126,6 +126,14 @@
       <button id="mediumBtn" data-difficulty="Medium" class="diff-btn">Medium (Y8–10)</button>
       <button id="hardBtn" data-difficulty="Hard" class="diff-btn">Hard (Y11+)</button>
     </div>
+    <!-- Challenge mode toggle: when enabled, players have only 5 guesses.  When
+         disabled, guesses are unlimited.  The toggle is a checkbox with a
+         descriptive label. -->
+    <div class="difficulty" role="group" aria-label="Challenge mode">
+      <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted)">
+        <input type="checkbox" id="challengeToggle" /> Challenge mode (5 guesses)
+      </label>
+    </div>
       </div>
     </header>
 
@@ -299,6 +307,56 @@ if (typeof window !== 'undefined' && window.ACCESSIBLE_WORDS) {
   window.WORDS = window.WORDS.concat(toAdd);
 }
 
+/* ======== Difficulty classification ======== */
+/**
+ * Compute a difficulty category for a word based on its morphemic
+ * structure and length.  Easy words are short and have at most one
+ * affix; medium words have two parts or moderate length; hard words
+ * include multiple affixes/bases or are unusually long.  This function
+ * mirrors the user’s definitions: simple, base/root words are easy;
+ * words with multiple affixes and roots or uncommon forms are hard;
+ * everything else is medium.
+ *
+ * @param {Array<{type:string,text:string}>} parts Morpheme parts for the word.
+ * @param {string} word The original word.
+ * @returns {'Easy'|'Medium'|'Hard'} The computed difficulty.
+ */
+function classifyDifficulty(parts, word) {
+  const baseCount = parts.filter(p => p.type === 'base').length;
+  const prefixCount = parts.filter(p => p.type === 'prefix').length;
+  const suffixCount = parts.filter(p => p.type === 'suffix').length;
+  const totalParts = parts.length;
+  const wordLen = word.length;
+  // Hard: multiple affixes/bases or long words
+  if (totalParts >= 3) return 'Hard';
+  if (prefixCount + suffixCount >= 2) return 'Hard';
+  if (baseCount >= 2) return 'Hard';
+  if (wordLen > 10) return 'Hard';
+  // Easy: base only or base plus a single affix, or very short
+  if (totalParts === 1) return 'Easy';
+  if (totalParts === 2) {
+    if ((prefixCount === 1 && suffixCount === 0) || (prefixCount === 0 && suffixCount === 1)) {
+      return 'Easy';
+    }
+  }
+  if (wordLen <= 5) return 'Easy';
+  // Medium otherwise
+  return 'Medium';
+}
+
+// Precompute a dynamic difficulty for each word.  We allow parts to be
+// provided (as in the pre‑loaded dataset) or derive them via segmentWord.
+if (typeof window !== 'undefined' && Array.isArray(window.WORDS)) {
+  window.WORDS.forEach(entry => {
+    let parts = entry.parts;
+    // If parts are missing, segment the word on the fly
+    if (!Array.isArray(parts) || parts.length === 0) {
+      parts = segmentWord(entry.word);
+    }
+    entry.dynamicDifficulty = classifyDifficulty(parts, entry.word);
+  });
+}
+
 /* ======== Game state ======== */
 const ROUNDS_MAX = 5;
 let secret = null;               // {word, parts, subject}
@@ -310,6 +368,10 @@ let revealed = false;
 
 // Difficulty setting: can be 'Easy', 'Medium' or 'Hard'. Defaults to 'Easy'.
 let selectedDifficulty = 'Easy';
+
+// Toggle for challenge mode; when true, players have only a limited
+// number of guesses (5).  When false, guesses are unlimited.
+let isChallengeMode = false;
 
 // Track the most recently clicked chip so the Hint button can reveal its meaning
 let selectedChip = null;
@@ -500,39 +562,49 @@ function renderSecretReveal(){
 }
 
 function updateRounds(){
-  els.roundsLeft.textContent = `${roundsLeft} round${roundsLeft===1?'':'s'} left`;
+  // Display remaining guesses.  When guesses are unlimited (Infinity),
+  // show a meaningful label instead of a number.
+  if(!Number.isFinite(roundsLeft)){
+    els.roundsLeft.textContent = 'Unlimited guesses';
+  } else {
+    els.roundsLeft.textContent = `${roundsLeft} guess${roundsLeft===1?'':'es'} left`;
+  }
 }
 
 /* ======== Game flow ======== */
 function newGame(){
   // reset
-  // Filter available words by selected difficulty and restrict secrets to
-  // accessible words (source === 'accessible') so that secret words are real
-  // vocabulary terms rather than generated combinations.  If there are
-  // insufficient accessible words for the chosen difficulty, fall back to
-  // accessible words of any difficulty; if still none, fall back to all words.
+  // Determine the pool of candidate secret words based on the selected
+  // difficulty.  Only words from the accessible vocabulary (source
+  // 'accessible') are eligible as secret words.  We use the dynamic
+  // difficulty classification computed at load time.  If no words match
+  // the chosen difficulty, we fall back to accessible words of any
+  // difficulty.  If still none, we use the entire list as a final
+  // fallback.
   let available = [];
   if (typeof WORDS !== 'undefined') {
     available = WORDS.filter(w => {
-      const difficultyMatch = !selectedDifficulty || w.difficulty === selectedDifficulty;
+      const difficultyMatch = !selectedDifficulty || w.dynamicDifficulty === selectedDifficulty;
       const sourceMatch = w.source === 'accessible';
       return difficultyMatch && sourceMatch;
     });
   }
-  // If no accessible words match both difficulty and source, relax difficulty
-  // constraint but still require accessible source
+  // Relax difficulty if no matches
   if (available.length === 0 && typeof WORDS !== 'undefined') {
     available = WORDS.filter(w => w.source === 'accessible');
   }
-  // Final fallback: use all words regardless of source or difficulty
   const pool = (available && available.length > 0) ? available : WORDS;
-  // Randomly choose a secret word from the appropriate pool
   secret = pool[Math.floor(Math.random() * pool.length)];
   // Rebuild the lookup map to validate guesses.  Include all words (not
   // just those in the pool) so that any word in the merged word bank can
   // be guessed.  Use lowercase keys for case-insensitive lookup.
   WORD_LOOKUP = new Map(WORDS.map(w => [w.word.toLowerCase(), w.parts]));
-  roundsLeft = ROUNDS_MAX; revealed = false; tokenState.clear();
+  // Set the number of guesses based on challenge mode.  In challenge
+  // mode, players get five guesses; otherwise, guesses are unlimited
+  // (represented by Infinity).
+  roundsLeft = isChallengeMode ? 5 : Infinity;
+  revealed = false;
+  tokenState.clear();
   els.feed.innerHTML = ''; els.error.textContent = ''; els.reveal.style.display='none';
   updateRounds();
 
@@ -716,7 +788,12 @@ function handleSubmit(){
     applyTokenColors(res.hits, res.misses);
   }
 
-  roundsLeft--;
+  // Decrement the remaining guesses only in challenge mode (i.e., when
+  // roundsLeft is finite).  In unlimited mode, roundsLeft stays at
+  // Infinity.
+  if(Number.isFinite(roundsLeft)){
+    roundsLeft--;
+  }
   updateRounds();
 
   // Reset hint usage for the next round now that a guess has been submitted
@@ -729,7 +806,8 @@ function handleSubmit(){
     renderSecretReveal();
     return;
   }
-  if(roundsLeft <= 0){
+  // If guesses are limited, end the game when no guesses remain
+  if(Number.isFinite(roundsLeft) && roundsLeft <= 0){
     revealed = true;
     renderSecretReveal();
   }
@@ -793,6 +871,17 @@ function init(){
       b.classList.add('active');
     }
   });
+
+  // Challenge mode toggle: enable or disable limited guesses.  When the
+  // toggle state changes, update the flag and restart the game to
+  // reflect the new limit.  Unlimited mode shows “Unlimited guesses”.
+  const challengeToggle = document.getElementById('challengeToggle');
+  if(challengeToggle){
+    challengeToggle.addEventListener('change', () => {
+      isChallengeMode = challengeToggle.checked;
+      newGame();
+    });
+  }
   // start
   newGame();
 }
