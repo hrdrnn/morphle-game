@@ -353,7 +353,10 @@ if (typeof window !== 'undefined' && Array.isArray(window.WORDS)) {
     if (!Array.isArray(parts) || parts.length === 0) {
       parts = segmentWord(entry.word);
     }
-    entry.dynamicDifficulty = classifyDifficulty(parts, entry.word);
+    // Only assign a dynamic difficulty if one has not been provided.
+    if (!("dynamicDifficulty" in entry)) {
+      entry.dynamicDifficulty = classifyDifficulty(parts, entry.word);
+    }
   });
 }
 
