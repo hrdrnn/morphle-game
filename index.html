@@ -418,6 +418,59 @@ function renderHint(nextHint){
   }
 }
 
+/**
+ * Segment an arbitrary word into a sequence of prefix/base/suffix parts.
+ *
+ * The segmentation algorithm searches for the longest matching prefix at
+ * the beginning of the word and the longest matching suffix at the end
+ * of the word using the entries from the MORPHEMES dictionary.  The
+ * substring between the prefix and suffix (if any) is treated as the
+ * base/root.  If no prefix or suffix are found, the entire word is
+ * considered a base.  Returned parts are objects with `type` and
+ * `text` properties.  This function enables the game to accept and
+ * evaluate any guess, even if it does not appear in the pre‑loaded
+ * word bank.
+ *
+ * @param {string} word The word to segment.
+ * @returns {Array<{type:string,text:string}>} An array of morpheme parts.
+ */
+function segmentWord(word){
+  const lower = word.toLowerCase();
+  const prefixes = Object.keys(MORPHEMES).filter(k => MORPHEMES[k].type === 'prefix');
+  const suffixes = Object.keys(MORPHEMES).filter(k => MORPHEMES[k].type === 'suffix');
+  // Sort by descending length to prioritise the longest match
+  prefixes.sort((a,b) => b.length - a.length);
+  suffixes.sort((a,b) => b.length - a.length);
+  let pre = null;
+  let suf = null;
+  let startIndex = 0;
+  let endIndex = lower.length;
+  // Find the longest prefix match
+  for(const p of prefixes){
+    if(lower.startsWith(p)){
+      pre = p;
+      startIndex = p.length;
+      break;
+    }
+  }
+  // Find the longest suffix match (search in the remaining string)
+  for(const s of suffixes){
+    if(lower.endsWith(s) && lower.length - s.length >= startIndex){
+      suf = s;
+      endIndex = lower.length - s.length;
+      break;
+    }
+  }
+  const parts = [];
+  if(pre){ parts.push({ type:'prefix', text: pre }); }
+  const baseText = lower.slice(startIndex, endIndex);
+  if(baseText){ parts.push({ type:'base', text: baseText }); }
+  if(suf){ parts.push({ type:'suffix', text: suf }); }
+  // If no parts were identified (edge case), return the whole word as base
+  if(parts.length === 0){ parts.push({ type:'base', text: lower }); }
+  return parts;
+}
+
 function renderSubjectHint(subject){
   const el = els.hintSubject;
   const cls = subjectClass(subject);
@@ -626,10 +679,18 @@ function handleSubmit(){
   els.error.textContent = '';
   if(!guess){ els.error.textContent = 'Enter a word.'; return; }
   const lowerGuess = guess.toLowerCase();
-  // Ensure the guess is in the word bank
-  if(!WORD_LOOKUP.has(lowerGuess)){
-    els.error.textContent = 'That word is not in this game’s word bank.';
-    return;
+  // If the guess appears in the pre‑loaded lookup, use its stored parts;
+  // otherwise, segment the guess into prefix/base/suffix.  This allows
+  // players to enter any word, even if it is not part of the built‑in
+  // word bank.  We normalise to lowercase for comparison and storage.
+  let guessParts;
+  if(WORD_LOOKUP.has(lowerGuess)){
+    guessParts = WORD_LOOKUP.get(lowerGuess);
+  } else {
+    guessParts = segmentWord(lowerGuess);
+    // Cache this segmentation for future guesses so duplicate guesses
+    // will be recognised and so the compare function can look it up.
+    WORD_LOOKUP.set(lowerGuess, guessParts);
   }
   // Prevent duplicate guesses within a single game
   if(guessedWords.has(lowerGuess)){
@@ -639,11 +700,21 @@ function handleSubmit(){
   // Mark the guess as used
   guessedWords.add(lowerGuess);
 
-  // Break down the guess into its parts for scoring and display
-  const guessParts = WORD_LOOKUP.get(lowerGuess);
+  // Compute matches between the guess and secret parts
   const res = compareGuess(guess);
-  addFeedRow(guess, res.parts);
-  applyTokenColors(res.hits, res.misses);
+  // res.parts may still be undefined if the compare function cannot
+  // retrieve parts; ensure it falls back to the segmentation used above
+  const partsForFeed = res && res.parts ? res.parts : guessParts.map(p => {
+    const k = keyFor(p);
+    const secretKeys = new Set(secret.parts.map(sp => keyFor(sp)));
+    return { ...p, match: secretKeys.has(k) };
+  });
+  // Display the guess and its morpheme parts
+  addFeedRow(guess, partsForFeed);
+  // Apply colouring to the tokens in the grid based on hits/misses
+  if(res){
+    applyTokenColors(res.hits, res.misses);
+  }
 
   roundsLeft--;
   updateRounds();
